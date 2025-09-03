@@ -18,6 +18,10 @@ dist/
 build/
 *.tsbuildinfo
 
+# Claude
+.claude/
+CLAUDE.md
+
 # IDE
 .vscode/
 .idea/
