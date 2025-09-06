@@ -9,5 +9,6 @@ dependencies = [
     "anthropic>=0.51.0",
     "mcp[cli]>=1.8.0",
     "prompt-toolkit>=3.0.51",
+    "python-dateutil>=2.9.0.post0",
     "python-dotenv>=1.1.0",
 ]
