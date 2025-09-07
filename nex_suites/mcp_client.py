@@ -1,9 +1,10 @@
 import sys
 import asyncio
-from typing import Optional, Any
+from typing import Optional, Any, Callable
 from contextlib import AsyncExitStack
 from mcp import ClientSession, StdioServerParameters, types
 from mcp.client.stdio import stdio_client
+from mcp.types import LoggingMessageNotificationParams
 
 
 class MCPClient:
@@ -25,12 +26,20 @@ class MCPClient:
             args=self._args,
             env=self._env,
         )
+        
+        # Define logging callback to handle server log messages
+        async def logging_callback(params: LoggingMessageNotificationParams):
+            # Print log messages with appropriate prefix
+            level = params.level if hasattr(params, 'level') else 'info'
+            message = params.data if hasattr(params, 'data') else str(params)
+            print(f"  [{level.upper()}] {message}")
+        
         stdio_transport = await self._exit_stack.enter_async_context(
             stdio_client(server_params)
         )
         _stdio, _write = stdio_transport
         self._session = await self._exit_stack.enter_async_context(
-            ClientSession(_stdio, _write)
+            ClientSession(_stdio, _write, logging_callback=logging_callback)
         )
         await self._session.initialize()
 
@@ -50,6 +59,8 @@ class MCPClient:
         self, tool_name: str, tool_input: dict
     ) -> types.CallToolResult | None:
         """Call a particular tool and return the result."""
+        # Note: Progress updates will be shown through logging messages
+        # The MCP library doesn't support progress_callback in call_tool
         result = await self.session().call_tool(tool_name, tool_input)
         return result
 

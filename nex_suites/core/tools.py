@@ -74,6 +74,7 @@ class ToolManager:
                 tool_result_blocks.append(tool_result_part)
                 continue
 
+            tool_output = None  # Initialize before try block
             try:
                 tool_output: CallToolResult | None = await client.call_tool(
                     tool_name, tool_input
@@ -98,9 +99,7 @@ class ToolManager:
                 tool_result_part = cls._build_tool_result_part(
                     tool_use_id,
                     json.dumps({"error": error_message}),
-                    "error"
-                    if tool_output and tool_output.isError
-                    else "success",
+                    "error"  # Always error if exception occurs
                 )
 
             tool_result_blocks.append(tool_result_part)

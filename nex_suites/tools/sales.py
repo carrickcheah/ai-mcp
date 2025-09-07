@@ -12,7 +12,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from utils.db import get_db_connection
+from mcp.server.fastmcp import FastMCP, Context
 
+mcp = FastMCP("sales-tools")
 logger = logging.getLogger(__name__)
 
 
@@ -99,41 +101,57 @@ def parse_period(period: str) -> tuple[datetime, datetime]:
     return start_date.replace(hour=0, minute=0, second=0, microsecond=0), now
 
 
+@mcp.tool(
+    name="get_sales",
+    description="Get sales invoice data for a specified time period with transaction details and summary"
+)
 async def get_sales(
-    period: str = Field(description="Time period (e.g., 'AUG', 'last 3 months', '2024', '6 months')")
+    period: str = Field(description="Time period (e.g., 'AUG', 'last 3 months', '2024', '6 months')"),
+    *,
+    context: Context
 ) -> str:
     """
-    Get sales/purchase order data for a specified period.
+    Get sales invoice data for a specified period.
     Returns formatted report with transaction details and summary.
     
     Args:
         period: Time period to fetch data for
+        context: MCP context for logging and progress
     
     Returns:
         Formatted sales report string
     """
     try:
+        # Initialize operation
+        await context.info(f"Starting sales query for period: {period}")
+        
         # Parse the period
         start_date, end_date = parse_period(period)
+        await context.info(f"Date range: {start_date.date()} to {end_date.date()}")
         
         async with get_db_connection() as db:
-            # Query for purchase orders in the period
+            # Query for sales invoices in the period
+            await context.info("Connecting to database and executing query...")
+            
             query = """
                 SELECT 
                     TxnDate_dd as txn_date,
-                    DocRef_v as po_number,
+                    DocRef_v as invoice_no,
                     GrandTotal_d as amount
-                FROM tbl_porder_txn
+                FROM tbl_sinvoice_txn
                 WHERE TxnDate_dd >= %s AND TxnDate_dd <= %s
                 ORDER BY TxnDate_dd DESC
             """
             
             all_records = await db.fetch_all(query, (start_date, end_date))
+            await context.info(f"Retrieved {len(all_records)} records from database")
             
             if not all_records:
-                return f"No purchase orders found for period: {period} ({start_date.date()} to {end_date.date()})"
+                await context.info("No records found for the specified period")
+                return f"No sales invoices found for period: {period} ({start_date.date()} to {end_date.date()})"
             
             # Calculate statistics
+            await context.info("Calculating statistics...")
             total_amount = sum(float(rec['amount'] or 0) for rec in all_records)
             total_count = len(all_records)
             avg_amount = total_amount / total_count if total_count > 0 else 0
@@ -143,23 +161,25 @@ async def get_sales(
             max_amount = max(amounts) if amounts else 0
             
             # Format the report
+            await context.info("Formatting report...")
+            
             report = []
-            report.append("=== Sales/Purchase Order Report ===")
+            report.append("=== Sales Report ===")
             report.append(f"Period: {period.upper()} ({start_date.date()} to {end_date.date()})")
             report.append("")
             
             # 1. Transaction details (cap at 30)
             report.append("1. Transaction Details (Latest 30 records):")
             report.append("-" * 70)
-            report.append(f"{'Date':<12} | {'PO Number':<20} | {'Amount':>15}")
+            report.append(f"{'Date':<12} | {'Invoice No':<20} | {'Amount':>15}")
             report.append("-" * 70)
             
             display_records = all_records[:30]
             for rec in display_records:
                 txn_date = rec['txn_date'].strftime('%Y-%m-%d') if rec['txn_date'] else 'N/A'
-                po_number = str(rec['po_number'] or 'N/A')[:20]
+                invoice_no = str(rec['invoice_no'] or 'N/A')[:20]
                 amount = float(rec['amount'] or 0)
-                report.append(f"{txn_date:<12} | {po_number:<20} | RM{amount:>13,.2f}")
+                report.append(f"{txn_date:<12} | {invoice_no:<20} | RM{amount:>13,.2f}")
             
             report.append("-" * 70)
             
@@ -168,21 +188,150 @@ async def get_sales(
             
             # 2. Total count
             report.append("")
-            report.append(f"2. Total Purchase Orders: {total_count}")
+            report.append(f"2. Total Sales Invoices: {total_count}")
             
             # 3. Amount summary
             report.append("")
             report.append("3. Amount Summary:")
             report.append(f"   Total: RM{total_amount:,.2f}")
-            report.append(f"   Average per PO: RM{avg_amount:,.2f}")
+            report.append(f"   Average per Invoice: RM{avg_amount:,.2f}")
             report.append(f"   Min Amount: RM{min_amount:,.2f}")
             report.append(f"   Max Amount: RM{max_amount:,.2f}")
+            
+            await context.info("Report generation completed successfully")
             
             return "\n".join(report)
             
     except Exception as e:
         logger.exception("Failed to get sales data")
         return f"Error fetching sales data: {str(e)}"
+
+
+@mcp.tool(
+    name="get_sales_detail",
+    description="Read the detail of a sales invoice and return comprehensive information including customer and items"
+)
+async def get_sales_detail(
+    invoice_no: str = Field(description="Invoice number to retrieve details for (e.g., 'INV001', 'SI25080001')"),
+    *,
+    context: Context
+) -> str:
+    """
+    Get detailed information about a specific sales invoice.
+    Joins invoice transaction, order items, and supplier/customer data.
+    
+    Args:
+        invoice_no: The invoice number to look up
+        context: MCP context for logging and progress
+    
+    Returns:
+        Formatted invoice details including customer info and line items
+    """
+    try:
+        await context.info(f"Starting invoice detail query for: {invoice_no}")
+        
+        async with get_db_connection() as db:
+            await context.info("Connecting to database...")
+            # Query for invoice header with customer details
+            header_query = """
+                SELECT 
+                    inv.TxnDate_dd as txn_date,
+                    inv.DocRef_v as invoice_no,
+                    inv.GrandTotal_d as grand_total,
+                    inv.CustId_i as customer_id,
+                    sup.IntId_v as customer_code,
+                    sup.SuppName_v as customer_name
+                FROM tbl_sinvoice_txn inv
+                LEFT JOIN tbl_supplier sup ON inv.CustId_i = sup.SuppId_i
+                WHERE inv.DocRef_v = %s
+            """
+            
+            await context.info("Fetching invoice header...")
+            header = await db.fetch_one(header_query, (invoice_no,))
+            
+            if not header:
+                await context.info(f"Invoice {invoice_no} not found")
+                return f"Invoice '{invoice_no}' not found in the system."
+            
+            # Query for invoice line items
+            # Join via TxnId_i
+            items_query = """
+                SELECT 
+                    item.QtyStatus_c as qty_status,
+                    item.ItemId_i as item_id,
+                    item.Remark_v as item_description,
+                    item.Qty_d as quantity,
+                    item.Price_d as unit_price,
+                    item.LineTotal_d as line_total
+                FROM tbl_sorder_item item
+                INNER JOIN tbl_sinvoice_txn inv ON item.TxnId_i = inv.TxnId_i
+                WHERE inv.DocRef_v = %s
+                ORDER BY item.RowId_i
+            """
+            
+            await context.info("Fetching line items...")
+            items = await db.fetch_all(items_query, (invoice_no,))
+            
+            # Format the detailed report
+            await context.info("Formatting invoice details...")
+            report = []
+            report.append("=== Sales Invoice Details ===")
+            report.append("")
+            
+            # Header information
+            report.append("Invoice Information:")
+            report.append("-" * 50)
+            report.append(f"Invoice No: {header['invoice_no']}")
+            report.append(f"Date: {header['txn_date'].strftime('%Y-%m-%d') if header['txn_date'] else 'N/A'}")
+            report.append(f"Grand Total: RM{float(header['grand_total'] or 0):,.2f}")
+            report.append("")
+            
+            # Customer information
+            report.append("Customer Information:")
+            report.append("-" * 50)
+            report.append(f"Customer ID: {header['customer_id'] or 'N/A'}")
+            report.append(f"Customer Code: {header['customer_code'] or 'N/A'}")
+            report.append(f"Customer Name: {header['customer_name'] or 'N/A'}")
+            report.append("")
+            
+            # Line items
+            if items:
+                report.append("Line Items:")
+                report.append("-" * 80)
+                report.append(f"{'Item Code':<15} | {'Description':<25} | {'Qty':<8} | {'Price':<10} | {'Total':<12} | {'Status':<10}")
+                report.append("-" * 80)
+                
+                for item in items:
+                    item_id = str(item.get('item_id', 'N/A'))[:15]
+                    description = str(item.get('item_description', 'N/A'))[:25] if item.get('item_description') else 'N/A'
+                    quantity = float(item.get('quantity', 0))
+                    unit_price = float(item.get('unit_price', 0))
+                    line_total = float(item.get('line_total', 0))
+                    qty_status = str(item.get('qty_status', 'N/A'))[:10]
+                    
+                    report.append(
+                        f"{item_id:<15} | {description:<25} | {quantity:<8.2f} | "
+                        f"RM{unit_price:<8.2f} | RM{line_total:<10.2f} | {qty_status:<10}"
+                    )
+                
+                report.append("-" * 80)
+                
+                # Summary
+                total_items = len(items)
+                total_quantity = sum(float(item.get('quantity', 0)) for item in items)
+                report.append(f"Total Items: {total_items}")
+                report.append(f"Total Quantity: {total_quantity:.2f}")
+            else:
+                report.append("No line items found for this invoice.")
+            
+            await context.info("Invoice details generation completed")
+            
+            return "\n".join(report)
+            
+    except Exception as e:
+        logger.exception("Failed to get sales invoice details")
+        await context.info(f"Error occurred: {str(e)}")
+        return f"Error fetching invoice details: {str(e)}"
 
 
 # async def create_sales_order(

@@ -48,7 +48,7 @@ class DatabaseConnection:
             timeout: Connection timeout in seconds
         """
         try:
-            logger.info(
+            logger.debug(
                 f"Connecting to MariaDB at {self.host}:{self.port}/{self.database}"
             )
             self.connection = await asyncio.wait_for(
@@ -63,7 +63,7 @@ class DatabaseConnection:
                 ),
                 timeout=timeout
             )
-            logger.info("Successfully connected to MariaDB")
+            logger.debug("Successfully connected to MariaDB")
         except asyncio.TimeoutError:
             logger.error(f"Connection timeout after {timeout} seconds")
             raise ConnectionError(f"Database connection timeout ({timeout}s)")
@@ -88,7 +88,7 @@ class DatabaseConnection:
             timeout: Connection timeout in seconds
         """
         try:
-            logger.info(
+            logger.debug(
                 f"Creating connection pool (min={minsize}, max={maxsize})"
             )
             self.pool = await asyncio.wait_for(
@@ -105,7 +105,7 @@ class DatabaseConnection:
                 ),
                 timeout=timeout
             )
-            logger.info("Connection pool created successfully")
+            logger.debug("Connection pool created successfully")
         except asyncio.TimeoutError:
             logger.error(f"Pool creation timeout after {timeout} seconds")
             raise ConnectionError(f"Pool creation timeout ({timeout}s)")
