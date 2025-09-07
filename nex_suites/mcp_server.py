@@ -2,11 +2,13 @@ from mcp.server.fastmcp import FastMCP, Context
 from pydantic import Field
 import sys
 from pathlib import Path
+from tools.sales import get_sales, get_sales_detail
+
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from tools.sales import get_sales, get_sales_detail
+
 
 mcp = FastMCP("Nex Sales MCP", log_level="ERROR")
 
@@ -45,27 +47,7 @@ async def get_sales_detail_tool(
     return await get_sales_detail(invoice_no, context=context)
 
 
-# Legacy document tools (keeping for compatibility)
-docs = {
-    "deposition.md": "This deposition covers the testimony of Angela Smith, P.E.",
-    "report.pdf": "The report details the state of a 20m condenser tower.",
-    "financials.docx": "These financials outline the project's budget and expenditures.",
-    "outlook.pdf": "This document presents the projected future performance of the system.",
-    "plan.md": "The plan outlines the steps for the project's implementation.",
-    "spec.txt": "These specifications define the technical requirements for the equipment.",
-}
 
-@mcp.tool(
-    name="read_doc_contents",
-    description="Read the contents of a document and return it as a string."
-)
-def read_document(
-    doc_id: str = Field(description="Id of the document to read")
-):
-    """Read a document by its ID."""
-    if doc_id not in docs:
-        raise ValueError(f"Doc with id {doc_id} not found")
-    return docs[doc_id]
 
 
 if __name__ == "__main__":

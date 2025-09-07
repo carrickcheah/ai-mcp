@@ -124,14 +124,17 @@ async def get_sales(
     try:
         # Initialize operation
         await context.info(f"Starting sales query for period: {period}")
+        await context.report_progress(10, 100)  # 10% - Starting
         
         # Parse the period
         start_date, end_date = parse_period(period)
         await context.info(f"Date range: {start_date.date()} to {end_date.date()}")
+        await context.report_progress(20, 100)  # 20% - Period parsed
         
         async with get_db_connection() as db:
             # Query for sales invoices in the period
             await context.info("Connecting to database and executing query...")
+            await context.report_progress(40, 100)  # 40% - Querying database
             
             query = """
                 SELECT 
@@ -145,6 +148,7 @@ async def get_sales(
             
             all_records = await db.fetch_all(query, (start_date, end_date))
             await context.info(f"Retrieved {len(all_records)} records from database")
+            await context.report_progress(60, 100)  # 60% - Data retrieved
             
             if not all_records:
                 await context.info("No records found for the specified period")
@@ -152,6 +156,7 @@ async def get_sales(
             
             # Calculate statistics
             await context.info("Calculating statistics...")
+            await context.report_progress(80, 100)  # 80% - Calculating stats
             total_amount = sum(float(rec['amount'] or 0) for rec in all_records)
             total_count = len(all_records)
             avg_amount = total_amount / total_count if total_count > 0 else 0
@@ -162,6 +167,7 @@ async def get_sales(
             
             # Format the report
             await context.info("Formatting report...")
+            await context.report_progress(90, 100)  # 90% - Formatting
             
             report = []
             report.append("=== Sales Report ===")
@@ -199,6 +205,7 @@ async def get_sales(
             report.append(f"   Max Amount: RM{max_amount:,.2f}")
             
             await context.info("Report generation completed successfully")
+            await context.report_progress(100, 100)  # 100% - Complete
             
             return "\n".join(report)
             
@@ -229,9 +236,11 @@ async def get_sales_detail(
     """
     try:
         await context.info(f"Starting invoice detail query for: {invoice_no}")
+        await context.report_progress(10, 100)  # 10% - Starting
         
         async with get_db_connection() as db:
             await context.info("Connecting to database...")
+            await context.report_progress(25, 100)  # 25% - Connected
             # Query for invoice header with customer details
             header_query = """
                 SELECT 
@@ -248,6 +257,7 @@ async def get_sales_detail(
             
             await context.info("Fetching invoice header...")
             header = await db.fetch_one(header_query, (invoice_no,))
+            await context.report_progress(50, 100)  # 50% - Header fetched
             
             if not header:
                 await context.info(f"Invoice {invoice_no} not found")
@@ -271,9 +281,11 @@ async def get_sales_detail(
             
             await context.info("Fetching line items...")
             items = await db.fetch_all(items_query, (invoice_no,))
+            await context.report_progress(75, 100)  # 75% - Items fetched
             
             # Format the detailed report
             await context.info("Formatting invoice details...")
+            await context.report_progress(90, 100)  # 90% - Formatting
             report = []
             report.append("=== Sales Invoice Details ===")
             report.append("")
@@ -325,6 +337,7 @@ async def get_sales_detail(
                 report.append("No line items found for this invoice.")
             
             await context.info("Invoice details generation completed")
+            await context.report_progress(100, 100)  # 100% - Complete
             
             return "\n".join(report)
             

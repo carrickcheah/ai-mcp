@@ -4,10 +4,13 @@ import os
 import logging
 
 # Configure logging BEFORE importing other modules
-logging.basicConfig(level=logging.WARNING)
+# Suppress all INFO logs except from our tools
+logging.basicConfig(level=logging.ERROR)
 logging.getLogger("server").setLevel(logging.ERROR)
 logging.getLogger("mcp").setLevel(logging.ERROR)
 logging.getLogger("utils.db").setLevel(logging.ERROR)
+logging.getLogger("mcp.server").setLevel(logging.ERROR)
+logging.getLogger("mcp.server.fastmcp").setLevel(logging.ERROR)
 
 from dotenv import load_dotenv
 from contextlib import AsyncExitStack  # Manages multiple async context managers for MCP clients

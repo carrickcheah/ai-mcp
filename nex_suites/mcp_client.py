@@ -59,9 +59,25 @@ class MCPClient:
         self, tool_name: str, tool_input: dict
     ) -> types.CallToolResult | None:
         """Call a particular tool and return the result."""
-        # Note: Progress updates will be shown through logging messages
-        # The MCP library doesn't support progress_callback in call_tool
-        result = await self.session().call_tool(tool_name, tool_input)
+        
+        # Define progress callback to display progress updates
+        async def print_progress_callback(
+            progress: float, total: float | None, message: str | None
+        ):
+            if total is not None:
+                percentage = (progress / total) * 100
+                print(f"  [PROGRESS] {progress:.0f}/{total:.0f} ({percentage:.1f}%)")
+            else:
+                print(f"  [PROGRESS] {progress}")
+            if message:
+                print(f"  [PROGRESS] {message}")
+        
+        # Call tool with progress callback for visual feedback
+        result = await self.session().call_tool(
+            tool_name, 
+            tool_input,
+            progress_callback=print_progress_callback
+        )
         return result
 
     async def list_prompts(self) -> list[types.Prompt]:

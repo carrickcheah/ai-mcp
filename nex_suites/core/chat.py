@@ -21,10 +21,29 @@ class Chat:
 
         await self._process_query(query)
 
+        # Check if the query needs tools
+        query_lower = query.lower().strip()
+        simple_messages = ['hi', 'hello', 'hey', 'thanks', 'thank you', 'bye', 'goodbye', 
+                          'why', 'what', 'who', 'when', 'where', 'how', 'ok', 'okay', 'yes', 'no']
+        
+        # Determine if we should include tools
+        needs_tools = True
+        if len(query_lower) < 20 and any(query_lower == msg or query_lower.startswith(msg + ' ') for msg in simple_messages):
+            needs_tools = False
+        
+        # Keywords that indicate tool usage needed
+        tool_keywords = ['sales', 'invoice', 'revenue', 'august', 'september', 'month', 
+                        'detail', 'show', 'get', 'list', 'report', 'data']
+        if any(keyword in query_lower for keyword in tool_keywords):
+            needs_tools = True
+
         while True:
+            # Only get tools if needed
+            tools = await ToolManager.get_all_tools(self.clients) if needs_tools else None
+            
             response = self.claude_service.chat(
                 messages=self.messages,
-                tools=await ToolManager.get_all_tools(self.clients),
+                tools=tools,
             )
 
             self.claude_service.add_assistant_message(self.messages, response)
