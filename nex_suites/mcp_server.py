@@ -46,7 +46,9 @@ async def get_sales_detail_tool(
     """
     return await get_sales_detail(invoice_no, context=context)
 
-
+        """Call a tool defined by the MCP server."""
+        result = await self.session().call_tool(tool_name, tool_input)
+        return result
 
 
 
