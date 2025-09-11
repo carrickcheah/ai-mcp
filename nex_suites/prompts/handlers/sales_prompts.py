@@ -3,23 +3,9 @@ Sales-related prompt handlers
 Tool-bound prompts for accurate data processing
 """
 
-from pathlib import Path
 from mcp.server.fastmcp import Context
-import sys
-
-# Add parent directory to path for imports
-sys.path.append(str(Path(__file__).parent.parent.parent))
-
-from mcp.server.fastmcp import FastMCP
-
-# Initialize MCP instance (will be imported from mcp_server.py in production)
-mcp = FastMCP("Nex Sales MCP")
 
 
-@mcp.prompt(
-    name="format_sales_invoice",
-    description="Formats sales invoice data with customer details, line items table, and 50-word executive summary"
-)
 async def format_sales_invoice(
     invoice_id: str,
     context: Context
@@ -43,7 +29,7 @@ async def format_sales_invoice(
     
     # Load template (simplified for now - would use loader in production)
     prompt_template = """
-You are a sales data formatting specialist.
+You are a sales data formatting specialist. Display sales invoice result in tabular form. limit to 20 rows.
 
 Given the following invoice data:
 {data}
@@ -83,10 +69,6 @@ Format everything using clean markdown. Ensure numbers are properly formatted wi
     }]
 
 
-@mcp.prompt(
-    name="analyze_sales_trends",
-    description="Analyzes sales patterns and trends for a specified period with insights and recommendations"
-)
 async def analyze_sales_trends(
     period: str,
     context: Context
@@ -113,6 +95,7 @@ You are a sales analytics expert.
 
 Analyze the following sales data for the period: {period}
 {data}
+Display sales invoice result in tabular form. limit to 20 rows.
 
 Provide a comprehensive analysis including:
 
@@ -148,10 +131,6 @@ Present findings in a clear, structured format using markdown.
     }]
 
 
-@mcp.prompt(
-    name="summarize_sales_data",
-    description="Creates a concise executive summary of sales data for quick review"
-)
 async def summarize_sales_data(
     period: str,
     context: Context
@@ -176,7 +155,7 @@ async def summarize_sales_data(
     prompt_template = """
 Create an executive summary of the following sales data for {period}:
 {data}
-
+Display sales invoice result in tabular form. limit to 20 rows.
 Summary Requirements:
 - Start with a one-sentence overview
 - Include total sales value and transaction count
