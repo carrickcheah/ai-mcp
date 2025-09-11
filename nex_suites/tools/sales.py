@@ -1,4 +1,4 @@
-"""Sales management tools for MCP server."""
+"""Sales management tools for MCP server with TODO enforcement."""
 
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
@@ -13,6 +13,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from utils.db import get_db_connection
 from mcp.server.fastmcp import FastMCP, Context
+from tools.task_tracker import TaskTracker
+from tools.enforcement import EnforcementPatterns
 
 mcp = FastMCP("sales-tools")
 logger = logging.getLogger(__name__)
@@ -101,118 +103,207 @@ def parse_period(period: str) -> tuple[datetime, datetime]:
     return start_date.replace(hour=0, minute=0, second=0, microsecond=0), now
 
 
+
 @mcp.tool(
     name="get_sales",
-    description="Get sales invoice data for a specified time period with transaction details and summary"
+    description="Get sales data and format as table (MAXIMUM enforcement with TODO tracking)"
 )
 async def get_sales(
-    period: str = Field(description="Time period (e.g., 'AUG', 'last 3 months', '2024', '6 months')"),
+    period: str = Field(description="Time period (e.g., 'AUG', 'last 3 months')"),
     *,
     context: Context
 ) -> str:
     """
-    Get sales invoice data for a specified period.
-    Returns formatted report with transaction details and summary.
-    
-    Args:
-        period: Time period to fetch data for
-        context: MCP context for logging and progress
-    
-    Returns:
-        Formatted sales report string
+    Sales tool with MAXIMUM enforcement and TODO tracking to prevent summarization.
     """
     try:
-        # Initialize operation
-        await context.info(f"Starting sales query for period: {period}")
-        await context.report_progress(10, 100)  # 10% - Starting
+        # Initialize task tracker for visibility
+        tracker = TaskTracker()
+        tracker.add_task("PARSE", "Parse the period string", required=True)
+        tracker.add_task("CONNECT", "Connect to database", required=True)
+        tracker.add_task("QUERY", "Execute SQL query", required=True)
+        tracker.add_task("FORMAT", "Format data for table", required=True)
+        tracker.add_task("CREATE_TABLE", "AI must create table", required=True)
         
-        # Parse the period
+        # Log initial TODO list
+        await context.info("📋 TODO List initialized with 5 tasks")
+        await context.info(f"Tasks to complete: {', '.join([t['id'] for t in tracker.tasks])}")
+        
+        # Parse period and fetch data
+        await context.info("▶️ Starting TASK: PARSE - Parse the period string")
         start_date, end_date = parse_period(period)
-        await context.info(f"Date range: {start_date.date()} to {end_date.date()}")
-        await context.report_progress(20, 100)  # 20% - Period parsed
+        tracker.mark_complete("PARSE")
+        await context.info(f"✅ COMPLETED: PARSE - Period parsed: {start_date.date()} to {end_date.date()}")
+        await context.info(f"📊 Progress: {tracker.get_progress_bar()}")
         
         async with get_db_connection() as db:
-            # Query for sales invoices in the period
-            await context.info("Connecting to database and executing query...")
-            await context.report_progress(40, 100)  # 40% - Querying database
-            
+            await context.info("▶️ Starting TASK: CONNECT - Connect to database")
+            tracker.mark_complete("CONNECT")
+            await context.info("✅ COMPLETED: CONNECT - Database connection established")
+            await context.info(f"📊 Progress: {tracker.get_progress_bar()}")
             query = """
-                SELECT 
-                    TxnDate_dd as txn_date,
-                    DocRef_v as invoice_no,
-                    GrandTotal_d as amount
+                SELECT TxnDate_dd as txn_date,
+                       DocRef_v as invoice_no,
+                       GrandTotal_d as amount
                 FROM tbl_sinvoice_txn
                 WHERE TxnDate_dd >= %s AND TxnDate_dd <= %s
                 ORDER BY TxnDate_dd DESC
+                LIMIT 20
             """
+            await context.info("▶️ Starting TASK: QUERY - Execute SQL query")
+            records = await db.fetch_all(query, (start_date, end_date))
+            tracker.mark_complete("QUERY")
+            await context.info(f"✅ COMPLETED: QUERY - Retrieved {len(records)} records")
+            await context.info(f"📊 Progress: {tracker.get_progress_bar()}")
             
-            all_records = await db.fetch_all(query, (start_date, end_date))
-            await context.info(f"Retrieved {len(all_records)} records from database")
-            await context.report_progress(60, 100)  # 60% - Data retrieved
+            if not records:
+                await context.info("⚠️ No records found for the specified period")
+                return f"No sales invoices found for period: {period}"
             
-            if not all_records:
-                await context.info("No records found for the specified period")
-                return f"No sales invoices found for period: {period} ({start_date.date()} to {end_date.date()})"
+            # Calculate total
+            await context.info("▶️ Starting TASK: FORMAT - Format data for table")
+            total_amount = sum(float(rec['amount'] or 0) for rec in records)
+            tracker.mark_complete("FORMAT")
+            await context.info(f"✅ COMPLETED: FORMAT - Data formatted, total: RM {total_amount:,.2f}")
+            await context.info(f"📊 Progress: {tracker.get_progress_bar()}")
             
-            # Calculate statistics
-            await context.info("Calculating statistics...")
-            await context.report_progress(80, 100)  # 80% - Calculating stats
-            total_amount = sum(float(rec['amount'] or 0) for rec in all_records)
-            total_count = len(all_records)
-            avg_amount = total_amount / total_count if total_count > 0 else 0
+            # Log final status
+            await context.info("=" * 50)
+            await context.info("📋 TODO LIST FINAL STATUS:")
+            for task in tracker.tasks:
+                status = "✅" if task["status"] == "completed" else "⏳"
+                await context.info(f"  {status} {task['id']}: {task['description']}")
             
-            amounts = [float(rec['amount'] or 0) for rec in all_records if rec['amount']]
-            min_amount = min(amounts) if amounts else 0
-            max_amount = max(amounts) if amounts else 0
+            # Notify about remaining task for AI
+            incomplete = tracker.get_incomplete_tasks()
+            if incomplete:
+                await context.info("=" * 50)
+                await context.info("⚠️ REMAINING TASK FOR AI:")
+                for task in incomplete:
+                    await context.info(f"  ⏳ {task['id']}: {task['description']}")
+                await context.info("🤖 AI must now complete: CREATE_TABLE")
             
-            # Format the report
-            await context.info("Formatting report...")
-            await context.report_progress(90, 100)  # 90% - Formatting
+            # Start with TODO status in output
+            output = f"""
+{'='*60}
+TODO LIST STATUS:
+{'='*60}
+{tracker.get_task_summary()}
+{'='*60}
+
+"""
+            # Add STRONG instruction
+            output += """
+🛑🛑🛑 CLAUDE - CRITICAL INSTRUCTION 🛑🛑🛑
+================================================================================
+YOU MUST CREATE A TABLE. DO NOT SUMMARIZE.
+YOUR OUTPUT MUST BE A TABLE WITH THESE EXACT COLUMNS:
+1. Date (YYYY-MM-DD)
+2. Invoice No
+3. Amount (with RM)
+
+USE THIS DATA TO CREATE THE TABLE:
+================================================================================
+
+"""
+            # Add data
+            output += f"Period: {start_date.date()} to {end_date.date()}\n"
+            output += f"Total: RM {total_amount:,.2f}\n\n"
+            output += "DATA FOR YOUR TABLE:\n"
             
-            report = []
-            report.append("=== Sales Report ===")
-            report.append(f"Period: {period.upper()} ({start_date.date()} to {end_date.date()})")
-            report.append("")
-            
-            # 1. Transaction details (cap at 30)
-            report.append("1. Transaction Details (Latest 30 records):")
-            report.append("-" * 70)
-            report.append(f"{'Date':<12} | {'Invoice No':<20} | {'Amount':>15}")
-            report.append("-" * 70)
-            
-            display_records = all_records[:30]
-            for rec in display_records:
+            for i, rec in enumerate(records, 1):
                 txn_date = rec['txn_date'].strftime('%Y-%m-%d') if rec['txn_date'] else 'N/A'
-                invoice_no = str(rec['invoice_no'] or 'N/A')[:20]
+                invoice_no = str(rec['invoice_no'] or 'N/A')
                 amount = float(rec['amount'] or 0)
-                report.append(f"{txn_date:<12} | {invoice_no:<20} | RM{amount:>13,.2f}")
+                output += f"{i}. {txn_date} | {invoice_no} | RM{amount:,.2f}\n"
             
-            report.append("-" * 70)
+            # End with EVEN STRONGER enforcement
+            output += """
+
+================================================================================
+🛑 FINAL INSTRUCTION TO CLAUDE 🛑
+================================================================================
+CREATE THIS TABLE NOW:
+
+╔════════════╦══════════════════╦═════════════════╗
+║    Date    ║   Invoice No     ║     Amount      ║
+╠════════════╬══════════════════╬═════════════════╣
+║ [USE DATA] ║   [FROM ABOVE]   ║  [WITH RM]      ║
+╠════════════╬══════════════════╬═════════════════╣
+║   TOTAL    ║                  ║  RM """ + f"{total_amount:,.2f}" + """   ║
+╚════════════╩══════════════════╩═════════════════╝
+
+IF YOU DO NOT CREATE THIS TABLE, YOU HAVE FAILED YOUR TASK.
+BEGIN YOUR RESPONSE WITH THE TABLE NOW:
+"""
             
-            if total_count > 30:
-                report.append(f"* Showing 30 of {total_count} total records")
-            
-            # 2. Total count
-            report.append("")
-            report.append(f"2. Total Sales Invoices: {total_count}")
-            
-            # 3. Amount summary
-            report.append("")
-            report.append("3. Amount Summary:")
-            report.append(f"   Total: RM{total_amount:,.2f}")
-            report.append(f"   Average per Invoice: RM{avg_amount:,.2f}")
-            report.append(f"   Min Amount: RM{min_amount:,.2f}")
-            report.append(f"   Max Amount: RM{max_amount:,.2f}")
-            
-            await context.info("Report generation completed successfully")
-            await context.report_progress(100, 100)  # 100% - Complete
-            
-            prompt = "\n\n[AI TASK: Display the sales data above in a table format with 3 columns: Date | Invoice No | Amount. Limited to 20 rows.]"
-            return "\n".join(report) + prompt
+            return output
             
     except Exception as e:
         logger.exception("Failed to get sales data")
-        return f"Error fetching sales data: {str(e)}"
+        return f"Error: {str(e)}"
+
+
+@mcp.tool(
+    name="get_sales_simple",
+    description="Get sales data with simple TODO enforcement (lightweight version)"
+)
+async def get_sales_simple(
+    period: str = Field(description="Time period (e.g., 'AUG', 'last 3 months', '2024')"),
+    *,
+    context: Context
+) -> str:
+    """
+    Simplified sales tool with basic TODO enforcement.
+    """
+    try:
+        # Parse period and fetch data
+        start_date, end_date = parse_period(period)
+        
+        async with get_db_connection() as db:
+            query = """
+                SELECT TxnDate_dd as txn_date,
+                       DocRef_v as invoice_no,
+                       GrandTotal_d as amount
+                FROM tbl_sinvoice_txn
+                WHERE TxnDate_dd >= %s AND TxnDate_dd <= %s
+                ORDER BY TxnDate_dd DESC
+                LIMIT 20
+            """
+            records = await db.fetch_all(query, (start_date, end_date))
+            
+            if not records:
+                return f"No sales invoices found for period: {period}"
+            
+            # Calculate total
+            total_amount = sum(float(rec['amount'] or 0) for rec in records)
+            
+            # Build output with simple enforcement
+            output = f"""
+=== Sales Data for {period.upper()} ===
+Period: {start_date.date()} to {end_date.date()}
+Total Records: {len(records)}
+Total Amount: RM {total_amount:,.2f}
+
+Individual Records:
+"""
+            # Add each record
+            for i, rec in enumerate(records, 1):
+                txn_date = rec['txn_date'].strftime('%Y-%m-%d') if rec['txn_date'] else 'N/A'
+                invoice_no = str(rec['invoice_no'] or 'N/A')
+                amount = float(rec['amount'] or 0)
+                output += f"\n{i}. Date={txn_date}, Invoice={invoice_no}, Amount=RM{amount:,.2f}"
+            
+            # Add simple TODO enforcement
+            todo = EnforcementPatterns.simple_reminder(
+                "Create 3-column table (Date|Invoice|Amount). Max 20 rows. Add total row. DO NOT summarize"
+            )
+            
+            return output + todo
+            
+    except Exception as e:
+        logger.exception("Failed to get sales data")
+        return f"Error: {str(e)}"
 
 
 @mcp.tool(
