@@ -1,0 +1,65 @@
+version: "1.0.0"
+default_model: "claude-3-5-haiku-latest"
+
+# Prompt metadata and configuration
+prompts:
+  format_sales_invoice:
+    template: "sales/format_invoice.md"
+    tool_bound: "get_sales_detail"
+    description: "Formats sales invoice with table and 50-word summary"
+    components:
+      tone: "professional"
+    validation:
+      required_params: ["invoice_id"]
+    output:
+      format: "markdown"
+      sections: ["customer_info", "invoice_table", "summary"]
+      
+  analyze_sales_trends:
+    template: "sales/analyze_trends.md"
+    tool_bound: "get_sales"
+    description: "Analyzes sales patterns for specified period"
+    components:
+      tone: "professional"
+    validation:
+      required_params: ["period"]
+      
+  summarize_sales:
+    template: "sales/summarize_sales.md"
+    tool_bound: "get_sales"
+    description: "Creates executive summary of sales data"
+    validation:
+      required_params: ["period"]
+
+# Intent to prompt mappings for smart routing
+intent_mapping:
+  FORMAT_INVOICE:
+    prompt: "format_sales_invoice"
+    keywords: ["format", "invoice", "table", "structure"]
+    priority: 1
+    
+  ANALYZE_TRENDS:
+    prompt: "analyze_sales_trends"
+    keywords: ["analyze", "trend", "pattern", "insights"]
+    priority: 2
+    
+  SUMMARIZE_DATA:
+    prompt: "summarize_sales"
+    keywords: ["summary", "summarize", "overview", "brief"]
+    priority: 3
+
+# Component configurations
+components:
+  tone:
+    professional:
+      description: "Professional business communication"
+    friendly:
+      description: "Warm and approachable tone"
+    urgent:
+      description: "Direct and action-oriented"
+      
+  context:
+    company_info:
+      description: "Company details and branding"
+    policies:
+      description: "Business policies and procedures"
