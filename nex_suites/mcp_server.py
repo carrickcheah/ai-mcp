@@ -47,7 +47,7 @@ async def get_sales_detail_tool(
     return await get_sales_detail(invoice_no, context=context)
 
 
-
+#. okok 
 
 if __name__ == "__main__":
     mcp.run(transport="stdio")
