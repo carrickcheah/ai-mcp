@@ -14,10 +14,29 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from utils.db import get_db_connection
 from mcp.server.fastmcp import FastMCP, Context
 from tools.task_tracker import TaskTracker
-from tools.enforcement import EnforcementPatterns
 
 mcp = FastMCP("sales-tools")
 logger = logging.getLogger(__name__)
+
+
+def load_prompt_template() -> str:
+    """Load the prompt template from good_prompt.md file."""
+    prompt_file = Path(__file__).parent / "good_prompt.md"
+    try:
+        with open(prompt_file, 'r', encoding='utf-8') as f:
+            content = f.read()
+            # Remove the markdown header if present
+            if content.startswith("# Sales Data"):
+                lines = content.split('\n')
+                # Skip the header line and the empty line after it
+                return '\n'.join(lines[2:])
+            return content
+    except FileNotFoundError:
+        logger.error(f"Prompt file not found: {prompt_file}")
+        return "ERROR: Prompt template not found"
+    except Exception as e:
+        logger.error(f"Error loading prompt: {e}")
+        return "ERROR: Failed to load prompt template"
 
 
 def parse_period(period: str) -> tuple[datetime, datetime]:
@@ -183,123 +202,27 @@ async def get_sales(
                     await context.info(f"  ⏳ {task['id']}: {task['description']}")
                 await context.info("🤖 AI must now complete: CREATE_TABLE")
             
-            # Start with TODO status in output
-            output = f"""
-{'='*60}
-TODO LIST STATUS:
-{'='*60}
-{tracker.get_task_summary()}
-{'='*60}
-
-"""
-            # Add STRONG instruction
-            output += """
-🛑🛑🛑 CLAUDE - CRITICAL INSTRUCTION 🛑🛑🛑
-================================================================================
-YOU MUST CREATE A TABLE. DO NOT SUMMARIZE.
-YOUR OUTPUT MUST BE A TABLE WITH THESE EXACT COLUMNS:
-1. Date (YYYY-MM-DD)
-2. Invoice No
-3. Amount (with RM)
-
-USE THIS DATA TO CREATE THE TABLE:
-================================================================================
-
-"""
-            # Add data
-            output += f"Period: {start_date.date()} to {end_date.date()}\n"
-            output += f"Total: RM {total_amount:,.2f}\n\n"
-            output += "DATA FOR YOUR TABLE:\n"
+            # Load prompt template
+            prompt_template = load_prompt_template()
             
+            # Prepare data rows
+            data_rows = ""
             for i, rec in enumerate(records, 1):
                 txn_date = rec['txn_date'].strftime('%Y-%m-%d') if rec['txn_date'] else 'N/A'
                 invoice_no = str(rec['invoice_no'] or 'N/A')
                 amount = float(rec['amount'] or 0)
-                output += f"{i}. {txn_date} | {invoice_no} | RM{amount:,.2f}\n"
+                data_rows += f"{i}. {txn_date} | {invoice_no} | RM{amount:,.2f}\n"
             
-            # End with EVEN STRONGER enforcement
-            output += """
-
-================================================================================
-🛑 FINAL INSTRUCTION TO CLAUDE 🛑
-================================================================================
-CREATE THIS TABLE NOW:
-
-╔════════════╦══════════════════╦═════════════════╗
-║    Date    ║   Invoice No     ║     Amount      ║
-╠════════════╬══════════════════╬═════════════════╣
-║ [USE DATA] ║   [FROM ABOVE]   ║  [WITH RM]      ║
-╠════════════╬══════════════════╬═════════════════╣
-║   TOTAL    ║                  ║  RM """ + f"{total_amount:,.2f}" + """   ║
-╚════════════╩══════════════════╩═════════════════╝
-
-IF YOU DO NOT CREATE THIS TABLE, YOU HAVE FAILED YOUR TASK.
-BEGIN YOUR RESPONSE WITH THE TABLE NOW:
-"""
-            
-            return output
-            
-    except Exception as e:
-        logger.exception("Failed to get sales data")
-        return f"Error: {str(e)}"
-
-
-@mcp.tool(
-    name="get_sales_simple",
-    description="Get sales data with simple TODO enforcement (lightweight version)"
-)
-async def get_sales_simple(
-    period: str = Field(description="Time period (e.g., 'AUG', 'last 3 months', '2024')"),
-    *,
-    context: Context
-) -> str:
-    """
-    Simplified sales tool with basic TODO enforcement.
-    """
-    try:
-        # Parse period and fetch data
-        start_date, end_date = parse_period(period)
-        
-        async with get_db_connection() as db:
-            query = """
-                SELECT TxnDate_dd as txn_date,
-                       DocRef_v as invoice_no,
-                       GrandTotal_d as amount
-                FROM tbl_sinvoice_txn
-                WHERE TxnDate_dd >= %s AND TxnDate_dd <= %s
-                ORDER BY TxnDate_dd DESC
-                LIMIT 20
-            """
-            records = await db.fetch_all(query, (start_date, end_date))
-            
-            if not records:
-                return f"No sales invoices found for period: {period}"
-            
-            # Calculate total
-            total_amount = sum(float(rec['amount'] or 0) for rec in records)
-            
-            # Build output with simple enforcement
-            output = f"""
-=== Sales Data for {period.upper()} ===
-Period: {start_date.date()} to {end_date.date()}
-Total Records: {len(records)}
-Total Amount: RM {total_amount:,.2f}
-
-Individual Records:
-"""
-            # Add each record
-            for i, rec in enumerate(records, 1):
-                txn_date = rec['txn_date'].strftime('%Y-%m-%d') if rec['txn_date'] else 'N/A'
-                invoice_no = str(rec['invoice_no'] or 'N/A')
-                amount = float(rec['amount'] or 0)
-                output += f"\n{i}. Date={txn_date}, Invoice={invoice_no}, Amount=RM{amount:,.2f}"
-            
-            # Add simple TODO enforcement
-            todo = EnforcementPatterns.simple_reminder(
-                "Create 3-column table (Date|Invoice|Amount). Max 20 rows. Add total row. DO NOT summarize"
+            # Format the prompt with actual data
+            output = prompt_template.format(
+                task_summary=tracker.get_task_summary(),
+                start_date=start_date.date(),
+                end_date=end_date.date(),
+                total_amount=f"{total_amount:,.2f}",
+                data_rows=data_rows.strip()
             )
             
-            return output + todo
+            return output
             
     except Exception as e:
         logger.exception("Failed to get sales data")

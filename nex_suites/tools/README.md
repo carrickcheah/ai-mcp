@@ -13,22 +13,10 @@ This directory contains MCP tools with integrated TODO enforcement to ensure AI 
 - Detailed enforcement with validation
 - Best for: Production use where compliance is critical
 
-#### 2. `get_sales_simple` - Lightweight Enforcement
-- Basic one-line enforcement
-- Minimal overhead
-- Quick and simple
-- Best for: Development and testing
-
-#### 3. `get_sales_enforced` - Maximum Enforcement
-- Strongest possible enforcement
-- Instructions at start AND end of output
-- Multiple warnings about failure
-- Best for: When other methods fail
-
-#### 4. `get_sales_detail` - Standard Tool
-- No enforcement (original version)
+#### 2. `get_sales_detail` - Invoice Details Tool
+- Retrieves detailed invoice information
+- Includes customer details and line items
 - Standard MCP tool implementation
-- Best for: Comparison and fallback
 
 ## TODO Enforcement System
 
@@ -39,11 +27,6 @@ This directory contains MCP tools with integrated TODO enforcement to ensure AI 
    - Generates enforcement prompts
    - Monitors progress
 
-2. **EnforcementPatterns** (`enforcement.py`)
-   - Collection of enforcement strategies
-   - Multiple patterns available
-   - Configurable strength levels
-
 ## Usage Examples
 
 ### Running the Tools
@@ -51,10 +34,9 @@ This directory contains MCP tools with integrated TODO enforcement to ensure AI 
 # Start the MCP server
 uv run main.py
 
-# Use different enforcement levels:
-"august sales"           # Uses get_sales (full tracking)
-"simple august sales"    # Uses get_sales_simple (lightweight)
-"enforced august sales"  # Uses get_sales_enforced (maximum)
+# Use the sales tools:
+"august sales"           # Uses get_sales (with TODO tracking)
+"invoice SI25080001"     # Uses get_sales_detail (invoice details)
 ```
 
 ### Expected Output
@@ -102,10 +84,9 @@ uv run python test_get_sales.py
 ## Troubleshooting
 
 ### If Claude Still Summarizes:
-1. Use `get_sales_enforced` for maximum enforcement
-2. Check tool output isn't truncated
-3. Verify MCP client passes full output
-4. Consider custom enforcement patterns
+1. Check tool output isn't truncated
+2. Verify MCP client passes full output
+3. Review the TaskTracker enforcement prompts
 
 ### Common Issues:
 - **Import errors**: Check paths in sales.py
@@ -116,7 +97,6 @@ uv run python test_get_sales.py
 
 ```python
 from tools.task_tracker import TaskTracker
-from tools.enforcement import EnforcementPatterns
 
 @mcp.tool(name="your_tool")
 async def your_tool(param: str, *, context: Context) -> str:
@@ -137,7 +117,6 @@ async def your_tool(param: str, *, context: Context) -> str:
 
 - `sales.py` - Sales tools with enforcement
 - `task_tracker.py` - Task tracking system
-- `enforcement.py` - Enforcement patterns
 - `TODO_IMPLEMENTATION.md` - Detailed documentation
 - `SOLUTION.md` - Problem analysis and solution
 - Test files for validation
