@@ -13,7 +13,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from utils.db import get_db_connection
 from mcp.server.fastmcp import FastMCP, Context
-from tools.task_tracker import TaskTracker
 
 mcp = FastMCP("sales-tools")
 logger = logging.getLogger(__name__)
@@ -136,30 +135,14 @@ async def get_sales(
     Sales tool with MAXIMUM enforcement and TODO tracking to prevent summarization.
     """
     try:
-        # Initialize task tracker for visibility
-        tracker = TaskTracker()
-        tracker.add_task("PARSE", "Parse the period string", required=True)
-        tracker.add_task("CONNECT", "Connect to database", required=True)
-        tracker.add_task("QUERY", "Execute SQL query", required=True)
-        tracker.add_task("FORMAT", "Format data for table", required=True)
-        tracker.add_task("CREATE_TABLE", "AI must create table", required=True)
-        
-        # Log initial TODO list
-        await context.info("📋 TODO List initialized with 5 tasks")
-        await context.info(f"Tasks to complete: {', '.join([t['id'] for t in tracker.tasks])}")
-        
         # Parse period and fetch data
-        await context.info("▶️ Starting TASK: PARSE - Parse the period string")
+        await context.info("▶️ Parsing the period string")
         start_date, end_date = parse_period(period)
-        tracker.mark_complete("PARSE")
-        await context.info(f"✅ COMPLETED: PARSE - Period parsed: {start_date.date()} to {end_date.date()}")
-        await context.info(f"📊 Progress: {tracker.get_progress_bar()}")
+        await context.info(f"✅ Period parsed: {start_date.date()} to {end_date.date()}")
         
         async with get_db_connection() as db:
-            await context.info("▶️ Starting TASK: CONNECT - Connect to database")
-            tracker.mark_complete("CONNECT")
-            await context.info("✅ COMPLETED: CONNECT - Database connection established")
-            await context.info(f"📊 Progress: {tracker.get_progress_bar()}")
+            await context.info("▶️ Connecting to database")
+            await context.info("✅ Database connection established")
             query = """
                 SELECT TxnDate_dd as txn_date,
                        DocRef_v as invoice_no,
@@ -167,40 +150,20 @@ async def get_sales(
                 FROM tbl_sinvoice_txn
                 WHERE TxnDate_dd >= %s AND TxnDate_dd <= %s
                 ORDER BY TxnDate_dd DESC
-                LIMIT 20
+                LIMIT 10
             """
-            await context.info("▶️ Starting TASK: QUERY - Execute SQL query")
+            await context.info("▶️ Executing SQL query")
             records = await db.fetch_all(query, (start_date, end_date))
-            tracker.mark_complete("QUERY")
-            await context.info(f"✅ COMPLETED: QUERY - Retrieved {len(records)} records")
-            await context.info(f"📊 Progress: {tracker.get_progress_bar()}")
+            await context.info(f"✅ Retrieved {len(records)} records")
             
             if not records:
                 await context.info("⚠️ No records found for the specified period")
                 return f"No sales invoices found for period: {period}"
             
             # Calculate total
-            await context.info("▶️ Starting TASK: FORMAT - Format data for table")
+            await context.info("▶️ Formatting data for table")
             total_amount = sum(float(rec['amount'] or 0) for rec in records)
-            tracker.mark_complete("FORMAT")
-            await context.info(f"✅ COMPLETED: FORMAT - Data formatted, total: RM {total_amount:,.2f}")
-            await context.info(f"📊 Progress: {tracker.get_progress_bar()}")
-            
-            # Log final status
-            await context.info("=" * 50)
-            await context.info("📋 TODO LIST FINAL STATUS:")
-            for task in tracker.tasks:
-                status = "✅" if task["status"] == "completed" else "⏳"
-                await context.info(f"  {status} {task['id']}: {task['description']}")
-            
-            # Notify about remaining task for AI
-            incomplete = tracker.get_incomplete_tasks()
-            if incomplete:
-                await context.info("=" * 50)
-                await context.info("⚠️ REMAINING TASK FOR AI:")
-                for task in incomplete:
-                    await context.info(f"  ⏳ {task['id']}: {task['description']}")
-                await context.info("🤖 AI must now complete: CREATE_TABLE")
+            await context.info(f"✅ Data formatted, total: RM {total_amount:,.2f}")
             
             # Load prompt template
             prompt_template = load_prompt_template()
@@ -214,8 +177,15 @@ async def get_sales(
                 data_rows += f"{i}. {txn_date} | {invoice_no} | RM{amount:,.2f}\n"
             
             # Format the prompt with actual data
+            # Create a simple task summary without TaskTracker
+            task_summary = """✓ PARSE: Parse the period string
+✓ CONNECT: Connect to database
+✓ QUERY: Execute SQL query
+✓ FORMAT: Format data for table
+○ CREATE_TABLE: AI must create table"""
+
             output = prompt_template.format(
-                task_summary=tracker.get_task_summary(),
+                task_summary=task_summary,
                 start_date=start_date.date(),
                 end_date=end_date.date(),
                 total_amount=f"{total_amount:,.2f}",

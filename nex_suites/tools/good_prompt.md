@@ -24,14 +24,6 @@ Raw Invoice Data:
 <detailed_task_description>
 CRITICAL REQUIREMENT: You MUST create a formatted table with the sales invoice data.
 
-RULES:
-1. DO NOT summarize the data
-2. DO NOT provide analysis or interpretation
-3. DO NOT skip any records from the provided data
-4. MUST include ALL invoice records in the table
-5. MUST add a TOTAL row at the bottom
-6. MUST use the exact column headers specified below
-
 Required Table Columns:
 - Date (YYYY-MM-DD format)
 - Invoice No (exact invoice number)
