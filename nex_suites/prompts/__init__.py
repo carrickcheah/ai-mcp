@@ -1,9 +1,3 @@
-"""
-MCP Prompt System
-Model-discoverable prompts with tool binding
-"""
+"""MCP Prompts package for Nex Suites."""
 
-# Import all prompt handlers to register them with MCP
-from .handlers import sales_prompts
-
-__all__ = ['sales_prompts']
+# This file makes the prompts directory a Python package
