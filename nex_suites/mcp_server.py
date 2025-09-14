@@ -85,15 +85,6 @@ async def purchase_pending_approval_resource() -> str:
     return await purchase.purchase_pending_approval()
 
 
-@mcp.resource("purchase://overdue-deliveries")
-async def purchase_overdue_deliveries_resource() -> str:
-    """
-    Overdue deliveries alert data.
-    Returns list of overdue POs with supplier details and days overdue.
-    """
-    return await purchase.purchase_overdue_deliveries()
-
-
 ################################################################
 ##                      Define Prompts                        ##
 ################################################################
