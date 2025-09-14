@@ -1,111 +1,54 @@
-# MCP Chat
+# AI-MCP Project
 
-MCP Chat is a command-line interface application that enables interactive chat capabilities with AI models through the Anthropic API. The application supports document retrieval, command-based prompts, and extensible tool integrations via the MCP (Model Control Protocol) architecture.
+A Model Context Protocol (MCP) implementation with web-based architecture.
 
-## Prerequisites
+## Project Structure
 
-- Python 3.9+
-- Anthropic API Key
+```
+nex3_ai/
+├── backend/        # MCP server and backend services
+│   ├── nex_suites/ # Core MCP implementation
+│   │   ├── tools/      # MCP tools
+│   │   ├── resources/  # MCP resources
+│   │   ├── prompts/    # MCP prompts
+│   │   └── utils/      # Utilities
+│   ├── pyproject.toml  # Python dependencies
+│   └── uv.lock         # Lock file
+└── frontend/       # Web frontend (React/TypeScript)
+```
+
+## Backend
+
+The backend implements MCP (Model Context Protocol) with:
+- FastMCP framework for server creation
+- Tools for data operations
+- Resources for data access
+- Prompts for AI interactions
+
+## Frontend
+
+Web-based UI for interacting with the MCP backend (coming soon).
 
 ## Setup
 
-### Step 1: Configure the environment variables
-
-1. Create or edit the `.env` file in the project root and verify that the following variables are set correctly:
-
-```
-ANTHROPIC_API_KEY=""  # Enter your Anthropic API secret key
-```
-
-### Step 2: Install dependencies
-
-#### Option 1: Setup with uv (Recommended)
-
-[uv](https://github.com/astral-sh/uv) is a fast Python package installer and resolver.
-
-1. Install uv, if not already installed:
-
+### Backend Setup
 ```bash
-pip install uv
-```
-
-2. Create and activate a virtual environment:
-
-```bash
+cd backend
 uv venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-```
-
-3. Install dependencies:
-
-```bash
 uv pip install -e .
 ```
 
-4. Run the project
-
+### Running the MCP Server
 ```bash
-uv run main.py
+cd backend
+uv run mcp dev nex_suites/mcp_server.py
 ```
-
-#### Option 2: Setup without uv
-
-1. Create and activate a virtual environment:
-
-```bash
-python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-```
-
-2. Install dependencies:
-
-```bash
-pip install anthropic python-dotenv prompt-toolkit "mcp[cli]==1.8.0"
-```
-
-3. Run the project
-
-```bash
-python main.py
-```
-
-## Usage
-
-### Basic Interaction
-
-Simply type your message and press Enter to chat with the model.
-
-### Document Retrieval
-
-Use the @ symbol followed by a document ID to include document content in your query:
-
-```
-> Tell me about @deposition.md
-```
-
-### Commands
-
-Use the / prefix to execute commands defined in the MCP server:
-
-```
-> /summarize deposition.md
-```
-
-Commands will auto-complete when you press Tab.
 
 ## Development
 
-### Adding New Documents
-
-Edit the `mcp_server.py` file to add new documents to the `docs` dictionary.
-
-### Implementing MCP Features
-
-To fully implement the MCP features:
-
-1. Complete the TODOs in `mcp_server.py`
-2. Implement the missing functionality in `mcp_client.py`
-
-### Linting and Typing Check
-
-There are no lint or type checks implemented.
+This project uses:
+- Python 3.12+ for backend
+- FastMCP for MCP implementation
+- uv for Python package management
+- React/TypeScript for frontend (planned)

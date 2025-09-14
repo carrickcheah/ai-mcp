@@ -1,26 +1,13 @@
-# Dependencies
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
-
-# Environment variables
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# Build outputs
-dist/
-build/
-*.tsbuildinfo
-
-# Claude
-.claude/
-CLAUDE.md
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv/
 
 # IDE
 .vscode/
@@ -28,31 +15,30 @@ CLAUDE.md
 *.swp
 *.swo
 *~
-.DS_Store
 
-# Testing
-coverage/
-*.lcov
-.nyc_output
+# OS
+.DS_Store
+Thumbs.db
 
 # Logs
 logs/
 *.log
 
-# Temporary files
-tmp/
-temp/
-uploads/
+# Environment
+.env
+.env.local
 
-# Database
-*.sqlite
-*.sqlite3
-*.db
+# Dependencies
+node_modules/
+dist/
+build/
 
-# OS Files
-Thumbs.db
-desktop.ini
+# Testing
+coverage/
+.coverage
+htmlcov/
+.pytest_cache/
 
-# Docker
-.dockerignore
-docker-compose.override.yml
+# Misc
+*.bak
+.temp/
