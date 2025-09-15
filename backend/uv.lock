@@ -82,6 +82,7 @@ dependencies = [
     { name = "pytesseract" },
     { name = "python-dateutil" },
     { name = "python-dotenv" },
+    { name = "rich" },
 ]
 
 [package.metadata]
@@ -98,6 +99,7 @@ requires-dist = [
     { name = "pytesseract", specifier = ">=0.3.13" },
     { name = "python-dateutil", specifier = ">=2.9.0.post0" },
     { name = "python-dotenv", specifier = ">=1.1.0" },
+    { name = "rich", specifier = ">=14.0.0" },
 ]
 
 [[package]]

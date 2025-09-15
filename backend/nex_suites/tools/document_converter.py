@@ -301,7 +301,7 @@ class DocumentConverter:
 
     @classmethod
     def format_as_markdown(cls, data: Dict[str, Any]) -> str:
-        """Format as markdown with tables."""
+        """Format as markdown with tables matching PERKESO receipt format."""
         output = []
 
         if data.get("parsed"):
@@ -313,7 +313,9 @@ class DocumentConverter:
                 output.append("")
 
             if parsed.get("receipt_no"):
-                output.append(f"**No. Resit:** {parsed['receipt_no']}")
+                output.append(f"No. Resit : {parsed['receipt_no']}")
+                output.append("")
+                output.append("---")
                 output.append("")
 
             # Organization section
@@ -321,56 +323,65 @@ class DocumentConverter:
                 output.append(f"## {parsed['organization']}")
                 output.append("")
 
-            # Create markdown table for main fields
-            output.append("| Field | Value |")
-            output.append("|-------|-------|")
+            # Create clean two-column table
+            output.append("| Tarikh Masa | {} |".format(parsed.get("datetime", "")))
+            output.append("|-------------|-----|")
+            output.append("| Tarikh Bayaran | {} |".format(parsed.get("payment_date", "")))
 
-            field_mappings = [
-                ("Tarikh Masa", "datetime"),
-                ("Tarikh Bayaran", "payment_date"),
-                ("Kod Majikan", "company_code"),
-                ("Nama Majikan", "company_name"),
-                ("Kaedah Bayaran", "payment_method"),
-                ("FPX Transaksi ID", "transaction_id"),
-                ("Bank", "bank"),
-                ("Jumlah Bayaran", "total_amount"),
-                ("Catatan", "notes")
-            ]
-
-            for label, field_key in field_mappings:
-                if field_key in parsed:
-                    value = parsed[field_key]
-                    output.append(f"| **{label}** | {value} |")
-
-            # Add payment items section if present
+            # Handle Jenis Bayaran separately as it can be multiline
+            jenis_bayaran = parsed.get("payment_type", "")
             if "payment_items" in parsed:
-                output.append("")
-                output.append("### Jenis Bayaran")
-                output.append("")
+                items = []
                 for item in parsed["payment_items"]:
-                    output.append(f"{item['number']}. {item['description']}")
+                    items.append(f"{item['number']}. {item['description']}")
+                jenis_bayaran = "<br>".join(items) if items else jenis_bayaran
+            output.append("| Jenis Bayaran | {} |".format(jenis_bayaran))
+
+            output.append("| Kod Majikan | {} |".format(parsed.get("company_code", "")))
+            output.append("| Nama Majikan | {} |".format(parsed.get("company_name", "")))
+            output.append("| Kaedah Bayaran | {} |".format(parsed.get("payment_method", "")))
+            output.append("| FPX Transaksi ID | {} |".format(parsed.get("transaction_id", "")))
+            output.append("| Bank | {} |".format(parsed.get("bank", "")))
+            output.append("| Jumlah Bayaran | {} |".format(parsed.get("total_amount", "")))
+            output.append("| Catatan | {} |".format(parsed.get("notes", "")))
+
+            # Add footer note if detected
+            if "Resit ini adalah cetakan komputer" in str(data.get("raw_text", "")):
+                output.append("")
+                output.append('"Resit ini adalah cetakan komputer dan tandatangan tidak diperlukan."')
 
         else:
-            # Fallback to raw content
-            output.append("# Document Content")
+            # Fallback to raw content with better formatting
+            output.append("# Document")
             output.append("")
             if data["type"] == "pdf":
                 for page in data.get("pages", []):
-                    output.append(f"## Page {page['page']}")
-                    output.append("")
-                    output.append("```")
-                    output.append(page.get("text", ""))
-                    output.append("```")
-                    output.append("")
+                    text = page.get("text", "")
+                    # Try basic table extraction
+                    lines = text.split('\n')
+                    output.append("| Field | Value |")
+                    output.append("|-------|-------|")
+                    for line in lines:
+                        if ':' in line:
+                            parts = line.split(':', 1)
+                            if len(parts) == 2:
+                                field = parts[0].strip()
+                                value = parts[1].strip()
+                                if field and value:
+                                    output.append(f"| {field} | {value} |")
             else:
-                output.append("```")
-                output.append(data.get("raw_text", ""))
-                output.append("```")
-
-        # Add metadata section
-        output.append("")
-        output.append("---")
-        output.append("*Generated from: " + data.get("filename", "unknown") + "*")
+                text = data.get("raw_text", "")
+                lines = text.split('\n')
+                output.append("| Field | Value |")
+                output.append("|-------|-------|")
+                for line in lines:
+                    if ':' in line:
+                        parts = line.split(':', 1)
+                        if len(parts) == 2:
+                            field = parts[0].strip()
+                            value = parts[1].strip()
+                            if field and value:
+                                output.append(f"| {field} | {value} |")
 
         return "\n".join(output)
 

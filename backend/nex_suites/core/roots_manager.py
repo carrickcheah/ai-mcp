@@ -7,6 +7,10 @@ from pathlib import Path
 from typing import Optional, List
 import argparse
 import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 
 class RootsManager:
@@ -14,6 +18,36 @@ class RootsManager:
 
     @staticmethod
     def get_default_roots() -> List[str]:
+        """Get root directories from .env or use smart defaults."""
+        # First try loading from .env
+        env_roots = os.getenv("DEFAULT_ROOTS", "")
+
+        if env_roots:
+            # Parse comma-separated paths from .env
+            roots = []
+            for path in env_roots.split(","):
+                path = path.strip()
+                if path:  # Skip empty strings
+                    # Expand ~ to home directory and resolve path
+                    expanded = os.path.expanduser(path)
+                    resolved = Path(expanded).resolve()
+
+                    # Check if path exists and is a directory
+                    if resolved.exists() and resolved.is_dir():
+                        roots.append(str(resolved))
+                    else:
+                        print(f"Warning: Configured root '{path}' does not exist or is not a directory")
+
+            if roots:
+                return roots
+            else:
+                print("Warning: No valid roots found in DEFAULT_ROOTS, falling back to smart defaults")
+
+        # Fall back to smart defaults if .env not configured or no valid paths
+        return RootsManager._get_smart_defaults()
+
+    @staticmethod
+    def _get_smart_defaults() -> List[str]:
         """Get sensible default root directories based on OS and what exists."""
         home = Path.home()
         defaults = []
@@ -79,18 +113,30 @@ class RootsManager:
 
         args = parser.parse_args()
 
-        # Apply smart defaults if no roots provided
+        # Apply defaults if no roots provided via command line
         if args.roots is None:
+            # Check if we're loading from .env
+            env_roots = os.getenv("DEFAULT_ROOTS", "")
             args.roots = RootsManager.get_default_roots()
+
             print("\n" + "="*60)
-            print("No --roots specified. Using default directories:")
+            if env_roots:
+                print("No --roots specified. Using roots from .env:")
+            else:
+                print("No --roots specified. Using smart default directories:")
+
             for root in args.roots:
                 # Make paths more readable
                 display_path = root.replace(str(Path.home()), "~")
                 print(f"  • {display_path}")
             print("="*60 + "\n")
-            print("To use different directories, restart with:")
-            print(f"  python main.py --roots /your/path1 /your/path2")
+
+            if env_roots:
+                print("To use different directories, edit DEFAULT_ROOTS in .env")
+            else:
+                print("To configure defaults, add DEFAULT_ROOTS to .env file")
+
+            print("Or restart with: python main.py --roots /your/path1 /your/path2")
             print()
 
         return args

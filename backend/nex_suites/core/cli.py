@@ -7,6 +7,9 @@ from prompt_toolkit.history import InMemoryHistory
 from prompt_toolkit.auto_suggest import AutoSuggest, Suggestion
 from prompt_toolkit.document import Document
 from prompt_toolkit.buffer import Buffer
+from rich.console import Console
+from rich.markdown import Markdown
+from rich.panel import Panel
 
 from core.cli_chat import CliChat
 
@@ -115,6 +118,7 @@ class CliApp:
         self.agent = agent
         self.resources = []
         self.prompts = []
+        self.console = Console()  # Rich console for formatted output
 
         self.completer = UnifiedCompleter()
 
@@ -204,7 +208,27 @@ class CliApp:
                     continue
 
                 response = await self.agent.run(user_input)
-                print(f"\nResponse:\n{response}")
+
+                # Default to rich markdown rendering
+                self.console.print()  # Empty line for spacing
+
+                # Check if response contains markdown indicators
+                if any(indicator in response for indicator in ['#', '|', '```', '**', '##', '###', '- ', '* ', '1. ']):
+                    # Render as rich markdown
+                    self.console.print(Panel(
+                        Markdown(response),
+                        title="[bold cyan]Response[/bold cyan]",
+                        border_style="cyan",
+                        padding=(1, 2)
+                    ))
+                else:
+                    # Plain text response
+                    self.console.print(Panel(
+                        response,
+                        title="[bold green]Response[/bold green]",
+                        border_style="green",
+                        padding=(1, 2)
+                    ))
 
             except KeyboardInterrupt:
                 break
