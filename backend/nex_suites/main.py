@@ -39,12 +39,10 @@ async def main():
     # Parse ALL arguments in one place
     args = RootsManager.parse_arguments()
 
-    # Validate roots if provided
-    root_paths = []
-    if args.roots:
-        root_paths = RootsManager.validate_roots(args.roots)
-        if root_paths:
-            print(f"Initialized with {len(root_paths)} root directories")
+    # Validate roots (always present now due to defaults)
+    root_paths = RootsManager.validate_roots(args.roots)
+    if root_paths:
+        print(f"✓ Initialized with {len(root_paths)} root directories")
 
     # Setup logging based on verbosity
     RootsManager.setup_logging(args.verbose, logging.ERROR)

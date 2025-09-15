@@ -54,7 +54,8 @@ async def list_roots(ctx: Context) -> List[str]:
 
         return root_paths
     except Exception as e:
-        ctx.info(f"Error listing roots: {str(e)}")
+        # Remove ctx.info that causes async warning
+        # Just return empty list on error
         return []
 
 
