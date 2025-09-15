@@ -17,6 +17,7 @@ from contextlib import AsyncExitStack  # Manages multiple async context managers
 
 from mcp_client import MCPClient
 from core.claude import Claude
+from core.roots_manager import RootsManager
 
 from core.cli_chat import CliChat
 from core.cli import CliApp
@@ -35,15 +36,31 @@ assert anthropic_api_key, (
 
 
 async def main():
-    # Initialize Claude service with configured model
-    claude_service = Claude(model=claude_model)
+    # Parse ALL arguments in one place
+    args = RootsManager.parse_arguments()
 
-    # Get additional MCP server scripts from command-line arguments
-    server_scripts = sys.argv[1:]  # e.g., python main.py server2.py server3.py
+    # Validate roots if provided
+    root_paths = []
+    if args.roots:
+        root_paths = RootsManager.validate_roots(args.roots)
+        if root_paths:
+            print(f"Initialized with {len(root_paths)} root directories")
+
+    # Setup logging based on verbosity
+    RootsManager.setup_logging(args.verbose, logging.ERROR)
+
+    # Override model if specified via CLI
+    model = args.model or claude_model
+
+    # Initialize Claude service with configured model
+    claude_service = Claude(model=model)
+
+    # Get additional MCP server scripts from arguments
+    server_scripts = args.servers  # Use parsed args instead of sys.argv
     clients = {}  # Dictionary to store all MCP client connections
 
     # Choose between uv or python for launching the default MCP server
-    command, args = (
+    command, mcp_args = (
         ("uv", ["run", "mcp_server.py"])  # Use uv package manager
         if os.getenv("USE_UV", "0") == "1"
         else ("python", ["mcp_server.py"])  # Use standard Python
@@ -53,7 +70,11 @@ async def main():
     async with AsyncExitStack() as stack:
         # Primary document server - provides document-related tools/resources/prompts
         doc_client = await stack.enter_async_context(
-            MCPClient(command=command, args=args)
+            MCPClient(
+                command=command,
+                args=mcp_args,
+                roots=[str(p) for p in root_paths]  # Pass roots to client
+            )
         )
         clients["doc_client"] = doc_client  # Special key for document operations
 

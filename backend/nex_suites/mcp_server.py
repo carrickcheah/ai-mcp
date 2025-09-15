@@ -7,7 +7,7 @@ from typing import Optional, List, Dict, Any
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from tools import sales
+from tools import sales, filesystem
 from resources import purchase
 from prompts import business_prompts
 
@@ -83,6 +83,96 @@ async def purchase_pending_approval_resource() -> str:
     Returns count, total value, and breakdown by urgency.
     """
     return await purchase.purchase_pending_approval()
+
+
+################################################################
+##                   Document Conversion Tools                ##
+################################################################
+
+@mcp.tool(
+    name="convert_document",
+    description="Convert PDF/image to text, markdown, or JSON format with OCR support"
+)
+async def convert_document_tool(
+    input_path: str = Field(description="Path to PDF or image file"),
+    output_format: str = Field(
+        description="Output format: 'text', 'markdown', or 'json'",
+        default="markdown"
+    ),
+    *,
+    context: Context
+) -> str:
+    """
+    Convert document to specified format with OCR support.
+    Supports PDF, JPG, JPEG, and PNG files.
+    """
+    return await filesystem.convert_document(input_path, output_format, ctx=context)
+
+
+@mcp.tool(
+    name="list_roots",
+    description="List all directories accessible to this server for file operations"
+)
+async def list_roots_tool(*, context: Context) -> List[str]:
+    """
+    List available root directories.
+    These are the directories where files can be read from.
+    """
+    return await filesystem.list_roots(context)
+
+
+@mcp.tool(
+    name="read_directory",
+    description="List files and subdirectories in a directory"
+)
+async def read_directory_tool(
+    path: str = Field(description="Directory path to read"),
+    *,
+    context: Context
+) -> List[Dict[str, Any]]:
+    """
+    Read directory contents. Path must be within allowed roots.
+    Returns list of files and directories with their properties.
+    """
+    return await filesystem.read_directory(path, ctx=context)
+
+
+@mcp.tool(
+    name="find_documents",
+    description="Find documents matching a pattern within allowed roots"
+)
+async def find_documents_tool(
+    pattern: str = Field(description="Search pattern (e.g., '*.pdf', 'invoice', 'receipt*')"),
+    root_path: Optional[str] = Field(None, description="Specific root to search in (optional)"),
+    *,
+    context: Context
+) -> List[Dict[str, Any]]:
+    """
+    Find documents matching a pattern.
+    Searches for PDFs and images that can be converted.
+    """
+    return await filesystem.find_documents(pattern, root_path, ctx=context)
+
+
+@mcp.tool(
+    name="save_conversion",
+    description="Convert document and save the result to a file"
+)
+async def save_conversion_tool(
+    input_path: str = Field(description="Path to source document"),
+    output_path: str = Field(description="Path where to save the converted file"),
+    output_format: str = Field(
+        description="Output format: 'text', 'markdown', or 'json'",
+        default="markdown"
+    ),
+    *,
+    context: Context
+) -> str:
+    """
+    Convert document and save to file.
+    Both paths must be within allowed roots.
+    """
+    return await filesystem.save_conversion(input_path, output_path, output_format, ctx=context)
 
 
 ################################################################

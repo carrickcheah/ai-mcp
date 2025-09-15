@@ -1,10 +1,13 @@
 import sys
 import asyncio
-from typing import Optional, Any, Callable
+from typing import Optional, Any, Callable, List
 from contextlib import AsyncExitStack
+from pathlib import Path
 from mcp import ClientSession, StdioServerParameters, types
 from mcp.client.stdio import stdio_client
-from mcp.types import LoggingMessageNotificationParams
+from mcp.types import LoggingMessageNotificationParams, Root, ListRootsResult, ErrorData
+from mcp.shared.context import RequestContext
+from pydantic import FileUrl
 
 
 class MCPClient:
@@ -13,12 +16,29 @@ class MCPClient:
         command: str,
         args: list[str],
         env: Optional[dict] = None,
+        roots: Optional[List[str]] = None,
     ):
         self._command = command
         self._args = args
         self._env = env
+        self._roots = self._create_roots(roots) if roots else []
         self._session: Optional[ClientSession] = None
         self._exit_stack: AsyncExitStack = AsyncExitStack()
+
+    def _create_roots(self, root_paths: List[str]) -> List[Root]:
+        """Convert path strings to Root objects."""
+        roots = []
+        for path in root_paths:
+            p = Path(path).resolve()
+            file_url = FileUrl(f"file://{p}")
+            roots.append(Root(uri=file_url, name=p.name or "Root"))
+        return roots
+
+    async def _handle_list_roots(
+        self, context: RequestContext["ClientSession", None]
+    ) -> ListRootsResult | ErrorData:
+        """Callback for when server requests roots."""
+        return ListRootsResult(roots=self._roots)
 
     async def connect(self):
         server_params = StdioServerParameters(
@@ -39,7 +59,12 @@ class MCPClient:
         )
         _stdio, _write = stdio_transport
         self._session = await self._exit_stack.enter_async_context(
-            ClientSession(_stdio, _write, logging_callback=logging_callback)
+            ClientSession(
+                _stdio,
+                _write,
+                logging_callback=logging_callback,
+                list_roots_callback=self._handle_list_roots if self._roots else None,
+            )
         )
         await self._session.initialize()
 
